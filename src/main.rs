@@ -13,30 +13,28 @@ impl FromStr for Command {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts = s.rsplit_once(" ");
-        if let Some((name, params)) = parts {
-            return match name {
-                "exit" => {
-                    Ok(
-                        Self::Exit(0)
-                    )
-                },
-                "echo" => {
-                    Ok(
-                        Self::Echo(params.into())
-                    )
-                },
-                _ => {
-                    Ok(
-                        Self::Other(s.into())
-                    )
-                }
+        let mut parts = s.split(' ');
+        let first_item = parts.next().unwrap_or(""); // Retrieve the first item or default to an empty string
+
+        // Join remaining items, or handle the case where there are none
+        let remaining_items = parts.collect::<Vec<_>>().join(" ");
+        match first_item {
+            "exit" => {
+                Ok(
+                    Self::Exit(0)
+                )
+            },
+            "echo" => {
+                Ok(
+                    Self::Echo(remaining_items)
+                )
+            },
+            _ => {
+                Ok(
+                    Self::Other(s.into())
+                )
             }
         }
-
-        Ok(
-            Self::Other(s.into())
-        )
     }
 }
 
