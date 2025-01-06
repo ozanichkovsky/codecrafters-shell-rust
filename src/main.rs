@@ -1,12 +1,55 @@
 #[allow(unused_imports)]
 use std::io::{self, Write};
+use std::ops::Deref;
 use std::process::exit;
 use std::str::FromStr;
 
-enum Command {
+enum Type {
+    BuiltIn,
+    Unknown
+}
+
+enum CommandType {
     Exit(i32),
-    Echo(String),
-    Other(String)
+    Echo {
+        value: String,
+    },
+    Type(Box<Command>),
+    Other {
+        name: String,
+    }
+}
+
+struct Command {
+    name: String,
+    typ: Type,
+    command_type: CommandType,
+}
+
+impl Command {
+    fn execute(&self) {
+        match &self.command_type {
+            CommandType::Exit(code, ..) => {
+                exit(*code);
+            },
+            CommandType::Echo {value, ..} => {
+                println!("{value}");
+            },
+            CommandType::Type(inner) => {
+                match inner.typ {
+                    Type::BuiltIn => {
+                        println!("builtin");
+                    },
+                    Type::Unknown => {
+                        println!("{}: command not found", inner.name);
+                    }
+                }
+            }
+            CommandType::Other {name, ..} => {
+                println!("{}: command not found", name);
+            }
+        }
+    }
 }
 
 impl FromStr for Command {
@@ -20,18 +63,46 @@ impl FromStr for Command {
         let remaining_items = parts.collect::<Vec<_>>().join(" ");
         match first_item {
             "exit" => {
+                let code = remaining_items.parse::<i32>().unwrap_or(0);
                 Ok(
-                    Self::Exit(0)
+                    Self {
+                        name: first_item.into(),
+                        command_type: CommandType::Exit(code),
+                        typ: Type::BuiltIn,
+                    }
                 )
             },
             "echo" => {
                 Ok(
-                    Self::Echo(remaining_items)
+                    Self {
+                        name: first_item.into(),
+                        command_type: CommandType::Echo {
+                            value: remaining_items,
+                        },
+                        typ: Type::BuiltIn,
+                    }
+                )
+            },
+            "type" => {
+                Ok(
+                    Self {
+                        name: first_item.into(),
+                        command_type: CommandType::Type(
+                            Box::new(Command::from_str(&remaining_items)?)
+                        ),
+                        typ: Type::BuiltIn,
+                    }
                 )
             },
             _ => {
                 Ok(
-                    Self::Other(s.into())
+                    Self {
+                        name: s.into(),
+                        command_type: CommandType::Other {
+                            name: s.into(),
+                        },
+                        typ: Type::Unknown,
+                    },
                 )
             }
         }
@@ -50,14 +121,6 @@ fn main() {
         stdin.read_line(&mut input).unwrap();
         let input = input.trim();
         let command = Command::from_str(input).unwrap();
-        match command {
-            Command::Exit(code) => {exit(code);},
-            Command::Echo(val) => {
-                println!("{}", val);
-            }
-            Command::Other(name) => {
-                println!("{}: command not found", name);
-            }
-        }
+        command.execute()
     }
 }
