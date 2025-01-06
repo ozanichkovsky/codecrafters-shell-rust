@@ -47,8 +47,10 @@ impl Command {
                 println!("{}", current_dir().unwrap().display());
             },
             CommandType::Cd {path} => {
-                if let Err(err) = set_current_dir(path) {
-                    println!("cd: {}: No such file or directory", path);
+                let home = env::var("HOME").unwrap();
+                let path = path.replace("~", &home);
+                if let Err(err) = set_current_dir(&path) {
+                    println!("cd: {}: No such file or directory", &path);
                 }
             }
             CommandType::Type(inner) => {
