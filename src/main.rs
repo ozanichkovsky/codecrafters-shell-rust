@@ -67,7 +67,7 @@ impl Command {
                     let mut cmd = CommandRunner::new(p);
                     cmd.arg(parameters.join(" "));
                     let output = cmd.output().unwrap();
-                    println!("{}", String::from_utf8(output.stdout).unwrap());
+                    print!("{}", String::from_utf8(output.stdout).unwrap());
                 } else {
                     println!("{}: not found", name);
                 }
