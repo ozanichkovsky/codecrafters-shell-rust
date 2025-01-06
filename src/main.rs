@@ -1,5 +1,6 @@
 use std::env;
-use std::env::current_dir;
+use std::env::{current_dir, set_current_dir};
+use std::ffi::OsStr;
 use std::process::Command as CommandRunner;
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -18,6 +19,9 @@ enum CommandType {
     },
     Type(Box<Command>),
     Pwd,
+    Cd {
+        path: String,
+    },
     Other {
         name: String,
         parameters: Vec<String>
@@ -41,6 +45,11 @@ impl Command {
             },
             CommandType::Pwd => {
                 println!("{}", current_dir().unwrap().display());
+            },
+            CommandType::Cd {path} => {
+                if let Err(err) = set_current_dir(path) {
+                    println!("cd: {}: No such file or directory", path);
+                }
             }
             CommandType::Type(inner) => {
                 match inner.typ {
@@ -136,6 +145,17 @@ impl FromStr for Command {
                     Self {
                         name: first_item.into(),
                         command_type: CommandType::Pwd,
+                        typ: Type::BuiltIn,
+                    }
+                )
+            }
+            "cd" => {
+                Ok(
+                    Self {
+                        name: first_item.into(),
+                        command_type: CommandType::Cd{
+                            path: remaining_items,
+                        },
                         typ: Type::BuiltIn,
                     }
                 )
