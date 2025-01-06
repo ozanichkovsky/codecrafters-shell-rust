@@ -1,4 +1,5 @@
 use std::env;
+use std::env::current_dir;
 use std::process::Command as CommandRunner;
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -16,6 +17,7 @@ enum CommandType {
         value: String,
     },
     Type(Box<Command>),
+    Pwd,
     Other {
         name: String,
         parameters: Vec<String>
@@ -37,6 +39,9 @@ impl Command {
             CommandType::Echo {value, ..} => {
                 println!("{value}");
             },
+            CommandType::Pwd => {
+                println!("{}", current_dir().unwrap().display());
+            }
             CommandType::Type(inner) => {
                 match inner.typ {
                     Type::BuiltIn => {
@@ -126,6 +131,15 @@ impl FromStr for Command {
                     }
                 )
             },
+            "pwd" => {
+                Ok(
+                    Self {
+                        name: first_item.into(),
+                        command_type: CommandType::Pwd,
+                        typ: Type::BuiltIn,
+                    }
+                )
+            }
             "type" => {
                 Ok(
                     Self {
