@@ -41,7 +41,7 @@ impl Command {
                         println!("{} is a shell builtin", inner.name);
                     },
                     Type::Unknown => {
-                        println!("{}: command not found", inner.name);
+                        println!("{}: not found", inner.name);
                     }
                 }
             }
