@@ -1,5 +1,7 @@
 use std::env;
+use std::process::Command as CommandRunner;
 use std::io::{self, Write};
+use std::path::PathBuf;
 use std::process::exit;
 use std::str::FromStr;
 
@@ -44,16 +46,10 @@ impl Command {
                         match env::var("PATH") {
                             Ok(paths) => {
                                 // Split the PATH into individual paths using `split_paths`
-                                let path = env::var("PATH")
-                                    .ok() // Convert Result to Option
-                                    .and_then(|path_var| {
-                                        // Use iterator to find the first directory containing the file
-                                        env::split_paths(&path_var)
-                                            .find(|path| path.join(&inner.name).is_file())
-                                    });
+                                let path = find_in_path(&inner.name);
                                 match path {
                                     Some(p) => {
-                                        println!("{} is {}", &inner.name, p.join(&inner.name).display());
+                                        println!("{} is {}", &inner.name, p.display());
                                     },
                                     None => {
                                         println!("{}: not found", &inner.name);
@@ -65,9 +61,35 @@ impl Command {
                     }
                 }
             }
-            CommandType::Other {name, ..} => {
-                println!("{}: command not found", name);
+            CommandType::Other {name, parameters} => {
+                let path = find_in_path(name);
+                if let Some(p) = path {
+                    let mut cmd = CommandRunner::new(p);
+                    cmd.arg(parameters.join(" "));
+                    let output = cmd.output().unwrap();
+                    println!("{}", String::from_utf8(output.stdout).unwrap());
+                } else {
+                    println!("{}: not found", name);
+                }
             }
+        }
+    }
+}
+
+fn find_in_path(name: &str) -> Option<PathBuf> {
+    let path = env::var("PATH")
+        .ok() // Convert Result to Option
+        .and_then(|path_var| {
+            // Use iterator to find the first directory containing the file
+            env::split_paths(&path_var)
+                .find(|path| path.join(name).is_file())
+        });
+    match path {
+        Some(p) => {
+            Some(p.join(name))
+        },
+        None => {
+            None
         }
     }
 }
@@ -118,9 +140,9 @@ impl FromStr for Command {
             _ => {
                 Ok(
                     Self {
-                        name: s.into(),
+                        name: first_item.into(),
                         command_type: CommandType::Other {
-                            name: s.into(),
+                            name: first_item.into(),
                             parameters: params,
                         },
                         typ: Type::Unknown,
