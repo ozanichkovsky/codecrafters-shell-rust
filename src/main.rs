@@ -38,7 +38,7 @@ impl Command {
             CommandType::Type(inner) => {
                 match inner.typ {
                     Type::BuiltIn => {
-                        println!("builtin");
+                        println!("{} is a shell builtin", inner.name);
                     },
                     Type::Unknown => {
                         println!("{}: command not found", inner.name);
