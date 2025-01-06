@@ -1,6 +1,5 @@
-#[allow(unused_imports)]
+use std::env;
 use std::io::{self, Write};
-use std::ops::Deref;
 use std::process::exit;
 use std::str::FromStr;
 
@@ -17,6 +16,7 @@ enum CommandType {
     Type(Box<Command>),
     Other {
         name: String,
+        parameters: Vec<String>
     }
 }
 
@@ -41,7 +41,27 @@ impl Command {
                         println!("{} is a shell builtin", inner.name);
                     },
                     Type::Unknown => {
-                        println!("{}: not found", inner.name);
+                        match env::var("PATH") {
+                            Ok(paths) => {
+                                // Split the PATH into individual paths using `split_paths`
+                                let path = env::var("PATH")
+                                    .ok() // Convert Result to Option
+                                    .and_then(|path_var| {
+                                        // Use iterator to find the first directory containing the file
+                                        env::split_paths(&path_var)
+                                            .find(|path| path.join(&inner.name).is_file())
+                                    });
+                                match path {
+                                    Some(p) => {
+                                        println!("{} is {}", &inner.name, p.join(&inner.name).display());
+                                    },
+                                    None => {
+                                        println!("{}: not found", &inner.name);
+                                    }
+                                };
+                            }
+                            Err(e) => {println!("{}: not found", &inner.name);},
+                        }
                     }
                 }
             }
@@ -59,8 +79,9 @@ impl FromStr for Command {
         let mut parts = s.split(' ');
         let first_item = parts.next().unwrap_or(""); // Retrieve the first item or default to an empty string
 
+        let params = parts.map(|i| i.into()).collect::<Vec<String>>();
         // Join remaining items, or handle the case where there are none
-        let remaining_items = parts.collect::<Vec<_>>().join(" ");
+        let remaining_items = params.join(" ");
         match first_item {
             "exit" => {
                 let code = remaining_items.parse::<i32>().unwrap_or(0);
@@ -100,6 +121,7 @@ impl FromStr for Command {
                         name: s.into(),
                         command_type: CommandType::Other {
                             name: s.into(),
+                            parameters: params,
                         },
                         typ: Type::Unknown,
                     },
