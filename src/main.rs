@@ -5,6 +5,7 @@ use std::str::FromStr;
 
 enum Command {
     Exit(i32),
+    Echo(String),
     Other(String)
 }
 
@@ -18,6 +19,11 @@ impl FromStr for Command {
                 "exit" => {
                     Ok(
                         Self::Exit(0)
+                    )
+                },
+                "echo" => {
+                    Ok(
+                        Self::Echo(params.into())
                     )
                 },
                 _ => {
@@ -48,6 +54,9 @@ fn main() {
         let command = Command::from_str(input).unwrap();
         match command {
             Command::Exit(code) => {exit(code);},
+            Command::Echo(val) => {
+                println!("{}", val);
+            }
             Command::Other(name) => {
                 println!("{}: command not found", name);
             }
