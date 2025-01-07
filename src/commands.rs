@@ -1,9 +1,10 @@
 use std::env;
 use std::env::{current_dir, set_current_dir};
 use std::process::Command as CommandRunner;
-use std::path::PathBuf;
 use std::process::exit;
 use std::str::FromStr;
+use crate::parser::tokenize;
+use crate::path::{find_in_path, get_path};
 
 enum Type {
     BuiltIn,
@@ -45,9 +46,7 @@ impl Command {
                 println!("{}", current_dir().unwrap().display());
             },
             CommandType::Cd {path} => {
-                let home = env::var("HOME").unwrap();
-                let path = path.replace("~", &home);
-                if let Err(err) = set_current_dir(&path) {
+                if let Err(err) = set_current_dir(get_path(&path)) {
                     println!("cd: {}: No such file or directory", &path);
                 }
             }
@@ -70,7 +69,7 @@ impl Command {
                                     }
                                 };
                             }
-                            Err(e) => {println!("{}: not found", &inner.name);},
+                            _ => {println!("{}: not found", &inner.name);},
                         }
                     }
                 }
@@ -90,29 +89,12 @@ impl Command {
     }
 }
 
-fn find_in_path(name: &str) -> Option<PathBuf> {
-    let path = env::var("PATH")
-        .ok() // Convert Result to Option
-        .and_then(|path_var| {
-            // Use iterator to find the first directory containing the file
-            env::split_paths(&path_var)
-                .find(|path| path.join(name).is_file())
-        });
-    match path {
-        Some(p) => {
-            Some(p.join(name))
-        },
-        None => {
-            None
-        }
-    }
-}
-
 impl FromStr for Command {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut parts = s.split(" ");
+        let tokens = tokenize(s);
+        let mut parts = tokens.iter();
         let first_item_opt = parts.next(); // Retrieve the first item or default to an empty string
         let first_item: &str;
         if let Some(s) = first_item_opt {
