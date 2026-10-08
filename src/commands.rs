@@ -2,6 +2,7 @@ use std::env;
 use std::env::{current_dir, set_current_dir};
 use std::process::Command as CommandRunner;
 use std::process::exit;
+use std::os::unix::process::CommandExt;
 use std::str::FromStr;
 use crate::parser::tokenize;
 use crate::path::{find_in_path, get_path};
@@ -78,7 +79,7 @@ impl Command {
                 let path = find_in_path(name);
                 if let Some(p) = path {
                     let mut cmd = CommandRunner::new(p);
-                    cmd.args(parameters);
+                    cmd.arg0(name).args(parameters);
                     let output = cmd.output().unwrap();
                     print!("{}", String::from_utf8(output.stdout).unwrap());
                 } else {
