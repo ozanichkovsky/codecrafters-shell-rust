@@ -17,7 +17,9 @@ enum CommandType {
     Echo {
         value: String,
     },
-    Type(Box<Command>),
+    Type {
+        name: String,
+    },
     Pwd,
     Cd {
         path: String,
@@ -25,6 +27,16 @@ enum CommandType {
     Other {
         name: String,
         parameters: Vec<String>
+    }
+}
+
+const BUILTINS: [&str; 5] = ["exit", "echo", "type", "pwd", "cd"];
+
+fn type_of(name: &str) -> Type {
+    if BUILTINS.contains(&name) {
+        Type::BuiltIn
+    } else {
+        Type::Unknown
     }
 }
 
@@ -51,26 +63,26 @@ impl Command {
                     println!("cd: {}: No such file or directory", &path);
                 }
             }
-            CommandType::Type(inner) => {
-                match inner.typ {
+            CommandType::Type {name} => {
+                match type_of(name) {
                     Type::BuiltIn => {
-                        println!("{} is a shell builtin", inner.name);
+                        println!("{} is a shell builtin", name);
                     },
                     Type::Unknown => {
                         match env::var("PATH") {
                             Ok(_paths) => {
                                 // Split the PATH into individual paths using `split_paths`
-                                let path = find_in_path(&inner.name);
+                                let path = find_in_path(name);
                                 match path {
                                     Some(p) => {
-                                        println!("{} is {}", &inner.name, p.display());
+                                        println!("{} is {}", name, p.display());
                                     },
                                     None => {
-                                        println!("{}: not found", &inner.name);
+                                        println!("{}: not found", name);
                                     }
                                 };
                             }
-                            _ => {println!("{}: not found", &inner.name);},
+                            _ => {println!("{}: not found", name);},
                         }
                     }
                 }
@@ -153,9 +165,9 @@ impl FromStr for Command {
                 Ok(
                     Self {
                         name: first_item.into(),
-                        command_type: CommandType::Type(
-                            Box::new(Command::from_str(&remaining_items)?)
-                        ),
+                        command_type: CommandType::Type {
+                            name: params.first().cloned().unwrap_or_default(),
+                        },
                         typ: Type::BuiltIn,
                     }
                 )

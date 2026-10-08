@@ -13,7 +13,8 @@ fn main() {
         let mut input = String::new();
         stdin.read_line(&mut input).unwrap();
         let input = input.trim();
-        let command = Command::from_str(input).unwrap();
-        command.execute()
+        if let Ok(command) = Command::from_str(input) {
+            command.execute()
+        }
     }
 }
