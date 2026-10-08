@@ -46,7 +46,7 @@ impl Command {
                 println!("{}", current_dir().unwrap().display());
             },
             CommandType::Cd {path} => {
-                if let Err(err) = set_current_dir(get_path(&path)) {
+                if let Err(_err) = set_current_dir(get_path(&path)) {
                     println!("cd: {}: No such file or directory", &path);
                 }
             }
@@ -57,7 +57,7 @@ impl Command {
                     },
                     Type::Unknown => {
                         match env::var("PATH") {
-                            Ok(paths) => {
+                            Ok(_paths) => {
                                 // Split the PATH into individual paths using `split_paths`
                                 let path = find_in_path(&inner.name);
                                 match path {
@@ -78,7 +78,7 @@ impl Command {
                 let path = find_in_path(name);
                 if let Some(p) = path {
                     let mut cmd = CommandRunner::new(p);
-                    cmd.arg(parameters.join(" "));
+                    cmd.args(parameters);
                     let output = cmd.output().unwrap();
                     print!("{}", String::from_utf8(output.stdout).unwrap());
                 } else {

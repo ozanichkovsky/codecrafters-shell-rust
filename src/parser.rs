@@ -21,20 +21,18 @@ struct StateMachine<StateType> {
 }
 
 impl<StateType> StateMachine<StateType> {
-    fn finalize(mut self) -> Vec<String> {
-        if !self.current_token.is_empty() {
-            self.tokens.push(self.current_token);
-        }
-        self.tokens
-    }
-
-    fn new_with_token(current_token: String, mut tokens: Vec<String>) -> StateMachine<Start> {
-        tokens.push(current_token);
+    fn transition<NewState>(self) -> StateMachine<NewState> {
         StateMachine {
-            current_token: String::new(),
-            tokens,
+            current_token: self.current_token,
+            tokens: self.tokens,
             _marker: PhantomData,
         }
+    }
+
+    // Ends the current word; quotes never end a word, only unquoted whitespace does
+    fn end_token(mut self) -> StateMachine<Start> {
+        self.tokens.push(std::mem::take(&mut self.current_token));
+        self.transition()
     }
 }
 
@@ -46,52 +44,6 @@ impl StateMachine<Start> {
             _marker: PhantomData,
         }
     }
-
-    fn process(self, c: char) -> Box<dyn ProcessState> {
-        match c {
-            ' ' | '\t' => Box::new(self), // Ignore leading whitespace
-            '\'' => Box::new(self.enter_single_quoted()),
-            '"' => Box::new(self.enter_double_quoted()),
-            _ => {
-                let mut machine = self;
-                machine.current_token.push(c);
-                Box::new(machine.enter_unquoted())
-            }
-        }
-    }
-
-    fn enter_single_quoted(mut self) -> StateMachine<SingleQuoted> {
-        if self.tokens.len() > 0 && self.tokens.last().unwrap().is_empty() {
-            self.tokens.pop();
-        }
-        StateMachine {
-            current_token: self.current_token,
-            tokens: self.tokens,
-            _marker: PhantomData,
-        }
-    }
-
-    fn enter_double_quoted(mut self) -> StateMachine<DoubleQuoted> {
-        if self.tokens.len() > 0 && self.tokens.last().unwrap().is_empty() {
-            self.tokens.pop();
-        }
-        StateMachine {
-            current_token: self.current_token,
-            tokens: self.tokens,
-            _marker: PhantomData,
-        }
-    }
-
-    fn enter_unquoted(mut self) -> StateMachine<Unquoted> {
-        if self.tokens.len() > 0 && self.tokens.last().unwrap().is_empty() {
-            self.tokens.pop();
-        }
-        StateMachine {
-            current_token: self.current_token,
-            tokens: self.tokens,
-            _marker: PhantomData,
-        }
-    }
 }
 
 trait ProcessState {
@@ -100,24 +52,29 @@ trait ProcessState {
 }
 
 impl ProcessState for StateMachine<Start> {
-    fn process(self: Box<Self>, c: char) -> Box<dyn ProcessState> {
-        (*self).process(c)
+    fn process(mut self: Box<Self>, c: char) -> Box<dyn ProcessState> {
+        match c {
+            ' ' | '\t' => self, // Skip whitespace between words
+            '\'' => Box::new(self.transition::<SingleQuoted>()),
+            '"' => Box::new(self.transition::<DoubleQuoted>()),
+            _ => {
+                self.current_token.push(c);
+                Box::new(self.transition::<Unquoted>())
+            }
+        }
     }
 
     fn finalize(self: Box<Self>) -> Vec<String> {
-        (*self).finalize()
+        self.tokens
     }
 }
 
 impl ProcessState for StateMachine<Unquoted> {
     fn process(mut self: Box<Self>, c: char) -> Box<dyn ProcessState> {
         match c {
-            ' ' | '\t' => {
-                if !self.current_token.is_empty() {
-                    self.tokens.push(self.current_token.clone());
-                }
-                Box::new(StateMachine::<Start>::new_with_token("".into(), self.tokens))
-            }
+            ' ' | '\t' => Box::new(self.end_token()),
+            '\'' => Box::new(self.transition::<SingleQuoted>()),
+            '"' => Box::new(self.transition::<DoubleQuoted>()),
             _ => {
                 self.current_token.push(c);
                 self
@@ -126,17 +83,15 @@ impl ProcessState for StateMachine<Unquoted> {
     }
 
     fn finalize(self: Box<Self>) -> Vec<String> {
-        (*self).finalize()
+        self.end_token().tokens
     }
 }
 
 impl ProcessState for StateMachine<SingleQuoted> {
     fn process(mut self: Box<Self>, c: char) -> Box<dyn ProcessState> {
         match c {
-            '\'' => Box::new(StateMachine::<Start>::new_with_token(
-                self.current_token.clone(),
-                self.tokens.clone(),
-            )),
+            // Closing quote returns to the word, so adjacent parts are concatenated
+            '\'' => Box::new(self.transition::<Unquoted>()),
             _ => {
                 self.current_token.push(c);
                 self
@@ -145,17 +100,14 @@ impl ProcessState for StateMachine<SingleQuoted> {
     }
 
     fn finalize(self: Box<Self>) -> Vec<String> {
-        (*self).finalize()
+        self.end_token().tokens
     }
 }
 
 impl ProcessState for StateMachine<DoubleQuoted> {
     fn process(mut self: Box<Self>, c: char) -> Box<dyn ProcessState> {
         match c {
-            '"' => Box::new(StateMachine::<Start>::new_with_token(
-                self.current_token.clone(),
-                self.tokens.clone(),
-            )),
+            '"' => Box::new(self.transition::<Unquoted>()),
             _ => {
                 self.current_token.push(c);
                 self
@@ -164,7 +116,7 @@ impl ProcessState for StateMachine<DoubleQuoted> {
     }
 
     fn finalize(self: Box<Self>) -> Vec<String> {
-        (*self).finalize()
+        self.end_token().tokens
     }
 }
 
@@ -179,6 +131,16 @@ pub fn tokenize(input: &str) -> Vec<String> {
 }
 
 
+#[cfg(test)]
 mod test {
+    use super::tokenize;
 
+    #[test]
+    fn single_quotes() {
+        assert_eq!(tokenize("echo 'hello    world'"), vec!["echo", "hello    world"]);
+        assert_eq!(tokenize("echo hello    world"), vec!["echo", "hello", "world"]);
+        assert_eq!(tokenize("echo 'hello''world'"), vec!["echo", "helloworld"]);
+        assert_eq!(tokenize("echo hello''world"), vec!["echo", "helloworld"]);
+        assert_eq!(tokenize("cat '/tmp/a b' 'c'"), vec!["cat", "/tmp/a b", "c"]);
+    }
 }
